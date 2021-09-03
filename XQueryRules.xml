@@ -1,0 +1,514 @@
+<XQueryRules>
+  <rule name="subFlowNamingConventionAndDeclaration" severity="CRITICAL">
+    <ruleLogic><![CDATA[
+let $subFlowNamingConventionAndDeclaration:=
+for $subFlow in $xmlFileContent//*:sub-flow
+let $subFlowName := $subFlow/@name
+let $fileNameWithoutExtensionPlusUnderscore :=  $fileNameWithoutExtension || "_"
+return
+     if($fileName = 'global.xml')
+        then (
+             <ruleResult>
+                 <lineAndColumnNumber>{data($subFlow/@*:codeReviewLocation)}</lineAndColumnNumber>
+                 <suggestedFix>{data($subFlowName)} should not be declared in global file</suggestedFix>
+             </ruleResult>
+         )
+     else if (not(starts-with(data($subFlowName), $fileNameWithoutExtensionPlusUnderscore)))
+         then (
+             <ruleResult>
+                 <lineAndColumnNumber>{data($subFlow/@*:codeReviewLocation)}</lineAndColumnNumber>
+                 <suggestedFix>name of sub-flow {data($subFlowName)} should start with '{$fileNameWithoutExtension}_' (i.e. name of the flow-file)</suggestedFix>
+              </ruleResult>
+         )
+     else if((count(tokenize(data($subFlowName),'_')) - 1) > 1 or (count(tokenize(data($subFlowName),'_')) - 1) = 0)
+        then (
+             <ruleResult>
+                 <lineAndColumnNumber>{data($subFlow/@*:codeReviewLocation)}</lineAndColumnNumber>
+                 <suggestedFix>{data($subFlowName)} _ must be used only to separate file-name and flow (or sub-flow) name</suggestedFix>
+             </ruleResult>
+         )
+     else if(ends-with(upper-case(data($subFlowName)), "FLOW"))
+        then (
+             <ruleResult>
+                 <lineAndColumnNumber>{data($subFlow/@*:codeReviewLocation)}</lineAndColumnNumber>
+                 <suggestedFix>{data($subFlowName)} should not end with word "flow"</suggestedFix>
+             </ruleResult>
+         )
+     else()
+          ]]></ruleLogic>
+  </rule>
+  <rule name="flowNamingConventionAndDeclaration" severity="CRITICAL">
+    <ruleLogic><![CDATA[
+let $flowNamingConventionAndDeclaration :=
+for $flow in $xmlFileContent//*:flow
+let $flowName := $flow/@name where contains(data($flowName), ':\') = false()
+let $fileNameWithoutExtensionPlusUnderscore :=  $fileNameWithoutExtension || "_"
+return
+    if($fileName = 'global.xml')
+       then (
+            <ruleResult>
+                <lineAndColumnNumber>{data($flow/@*:codeReviewLocation)}</lineAndColumnNumber>
+                <suggestedFix>{data($flowName)} should not be declared in global file</suggestedFix>
+            </ruleResult>
+        )
+    else if (not(starts-with(data($flowName), $fileNameWithoutExtensionPlusUnderscore)) and boolean($flow/*:router) = false())
+         then (
+             <ruleResult>
+                 <lineAndColumnNumber>{data($flow/@*:codeReviewLocation)}</lineAndColumnNumber>
+                 <suggestedFix>name of flow {data($flowName)} should start with '{$fileNameWithoutExtension}_' (i.e. name of the flow-file)</suggestedFix>
+              </ruleResult>
+    )
+    else if((count(tokenize(data($flowName),'_')) - 1) > 1)
+       then (
+            <ruleResult>
+                <lineAndColumnNumber>{data($flow/@*:codeReviewLocation)}</lineAndColumnNumber>
+                <suggestedFix>{data($flowName)}:  _ can be used only to separate file-name and flow (or sub-flow) name</suggestedFix>
+            </ruleResult>
+        )
+    else if(ends-with(upper-case(data($flowName)), "FLOW"))
+       then (
+            <ruleResult>
+                <lineAndColumnNumber>{data($flow/@*:codeReviewLocation)}</lineAndColumnNumber>
+                <suggestedFix>{data($flowName)} should not end with word "flow"</suggestedFix>
+            </ruleResult>
+        )
+    else()
+          ]]></ruleLogic>
+  </rule>
+  <rule name="apiAutoDiscoveryIdConfiguration" severity="CRITICAL">
+    <ruleLogic><![CDATA[
+let $apiAutoDiscoveryIdConfiguration :=
+let $autodiscovery:=  $xmlFileContent//*:autodiscovery
+let $apiId := $autodiscovery/@apiId
+let $httpListener := $allXmlFilesContent//*:listener where boolean($apiId) = true()
+return
+   if ($fileName != 'global.xml')
+              then(
+                <ruleResult>
+                    <lineAndColumnNumber>{data($autodiscovery/@*:codeReviewLocation)}</lineAndColumnNumber>
+                    <suggestedFix>autodiscovery with apiId = "{data($apiId)}" should be placed in a file named global.xml</suggestedFix>
+                </ruleResult>
+              )
+   else if (boolean($httpListener) = false())
+         then(
+              <ruleResult>
+                  <lineAndColumnNumber>{data($autodiscovery/@*:codeReviewLocation)}</lineAndColumnNumber>
+                  <suggestedFix>autodiscovery with apiId = "{data($apiId)}" is available but could not find http:listener</suggestedFix>
+              </ruleResult>
+         )
+   else if (compare($apiId,'${api.autodiscoveryID}') != 0)
+             then(
+                <ruleResult>
+                    <lineAndColumnNumber>{data($autodiscovery/@*:codeReviewLocation)}</lineAndColumnNumber>
+                    <suggestedFix>autodiscovery apiId attribute should be externalized with value equals {data('${api.autodiscoveryID}')}</suggestedFix>
+                </ruleResult>
+             )
+   else()
+          ]]></ruleLogic>
+  </rule>
+  <rule name="cronConfiguration" severity="CRITICAL">
+    <ruleLogic><![CDATA[
+let $cronConfiguration :=
+for $cron in $xmlFileContent//*:scheduler/*:scheduling-strategy/*:cron
+let $cronExpression := $cron/@expression
+let $timeZoneExpression := $cron/@timeZone
+return
+  if ((boolean($cronExpression) = true()) and not(starts-with($cronExpression,'${')))
+           then(
+                <ruleResult>
+                    <lineAndColumnNumber>{data($cron/@*:codeReviewLocation)}</lineAndColumnNumber>
+                    <suggestedFix>cron expression with value "{data($cronExpression)}" should be externalized into property file</suggestedFix>
+                </ruleResult>
+           )
+    else if ((boolean($timeZoneExpression) = true()) and not(starts-with($timeZoneExpression,'${')))
+           then(
+                <ruleResult>
+                    <lineAndColumnNumber>{data($cron/@*:codeReviewLocation)}</lineAndColumnNumber>
+                    <suggestedFix>cron timeZone with value "{data($timeZoneExpression)}" should be externalized into property file</suggestedFix>
+                </ruleResult>
+           )
+    else ()
+          ]]></ruleLogic>
+  </rule>
+  <rule name="fixedFrequencyConfiguration" severity="CRITICAL">
+    <ruleLogic><![CDATA[
+let $fixedFrequencyConfiguration :=   for $fixedFrequency in $xmlFileContent//*:scheduler/*:scheduling-strategy/*:fixed-frequency
+let $frequencyExpression := $fixedFrequency/@frequency
+let $startDelayExpression := $fixedFrequency/@startDelay
+return
+  if ((boolean($frequencyExpression) = true()) and not(starts-with($frequencyExpression,'${')))
+          then(
+               <ruleResult>
+                   <lineAndColumnNumber>{data($fixedFrequency/@*:codeReviewLocation)}</lineAndColumnNumber>
+                   <suggestedFix>fixed frequency expression with value "${data($frequencyExpression)}" should be externalized into property file</suggestedFix>
+               </ruleResult>
+             )
+    else if((boolean($startDelayExpression) = true()) and not(starts-with($startDelayExpression,'${')))
+          then(
+              <ruleResult>
+                  <lineAndColumnNumber>{data($fixedFrequency/@*:codeReviewLocation)}</lineAndColumnNumber>
+                  <suggestedFix>fixed frequency startDelay expression with value "{data($startDelayExpression)}" should be externalized into property file</suggestedFix>
+              </ruleResult>
+           )
+    else()
+          ]]></ruleLogic>
+  </rule>
+  <rule name="emailAddressConfiguration" severity="CRITICAL">
+    <ruleLogic><![CDATA[
+let $emailAddressConfiguration :=
+for  $email in $xmlFileContent//*:send
+let $emailFromAddress:=  $email/@fromAddress
+let $emailToAddress:=  $email/@toAddresses
+let $emailBccAddress:=  $email/@bccAddresses
+let $emailCcAddress:=  $email//*:cc-addresses/*:cc-address
+return
+   if((boolean($emailFromAddress) = true()) and not(starts-with($emailFromAddress,'${') or starts-with($emailFromAddress, 'p(') ) )
+                then (
+                    <ruleResult>
+                        <lineAndColumnNumber>{data($email/@*:codeReviewLocation)}</lineAndColumnNumber>
+                        <suggestedFix>"{data($emailFromAddress)}" should be externalized into property file</suggestedFix>
+                    </ruleResult>
+                )
+      else if((boolean($emailToAddress) = true()) and not( starts-with($emailToAddress,'${') or starts-with($emailToAddress,'p(') ) )
+             then (
+                 <ruleResult>
+                     <lineAndColumnNumber>{data($email/@*:codeReviewLocation)}</lineAndColumnNumber>
+                     <suggestedFix>"{data($emailToAddress)}" should be externalized</suggestedFix>
+                 </ruleResult>
+             )
+             else if((boolean($emailBccAddress) = true()) and not( starts-with($emailBccAddress,'${') or starts-with($emailBccAddress,'p(') ) )
+             then (
+                 <ruleResult>
+                     <lineAndColumnNumber>{data($email/@*:codeReviewLocation)}</lineAndColumnNumber>
+                     <suggestedFix>"{data($emailBccAddress)}" should be externalized</suggestedFix>
+                 </ruleResult>
+             )
+         else if((boolean($emailCcAddress) = true()) and not( starts-with($emailCcAddress,'${') or starts-with($emailCcAddress,'p(') ) )
+             then (
+                 <ruleResult>
+                     <lineAndColumnNumber>{data($emailCcAddress/@*:codeReviewLocation)}</lineAndColumnNumber>
+                     <suggestedFix>"{data($emailCcAddress/@value)}" should be externalized</suggestedFix>
+                 </ruleResult>
+             )
+      else ()
+          ]]></ruleLogic>
+  </rule>
+  <rule name="connectionHostConfiguration" severity="CRITICAL">
+    <ruleLogic><![CDATA[
+let $connectionHostConfiguration :=
+for $connection in $xmlFileContent//*[ends-with(local-name(), "-connection")] where boolean($connection/@host) = true()
+return
+  if( not ( starts-with(data($connection/@host),'${') or  starts-with(data($connection/@host),"#[") ) )
+            then (
+                <ruleResult>
+                    <lineAndColumnNumber>{data($connection/@*:codeReviewLocation)}</lineAndColumnNumber>
+                    <suggestedFix>Host with value "{data($connection/@host)}" should be externalized</suggestedFix>
+                </ruleResult>
+            )
+  else ()
+          ]]></ruleLogic>
+  </rule>
+  <rule name="connectionPortConfiguration" severity="CRITICAL">
+    <ruleLogic><![CDATA[
+let $connectionPortConfiguration :=
+for $connection in $xmlFileContent//*[ends-with(local-name(), "-connection")] where boolean($connection/@port) = true()
+return
+  if( not ( starts-with( data($connection/@port),'${') or starts-with( data($connection/@port),"#[") ) )
+        then (
+            <ruleResult>
+                <lineAndColumnNumber>{data($connection/@*:codeReviewLocation)}</lineAndColumnNumber>
+                <suggestedFix>Port with value "{data($connection/@port)}" should externalized</suggestedFix>
+            </ruleResult>
+        )
+    else ()
+          ]]></ruleLogic>
+  </rule>
+  <rule name="connectionUserConfiguration" severity="CRITICAL">
+    <ruleLogic><![CDATA[
+let $connectionUserConfiguration :=
+for $connection in $xmlFileContent//*[ends-with(local-name(), "-connection")]
+return
+    if(
+       boolean($connection/@user) = true() and
+       not(starts-with(data($connection/@user),'${') or starts-with(data($connection/@user), "#["))
+       )
+        then (
+            <ruleResult>
+                <lineAndColumnNumber>{data($connection/@*:codeReviewLocation)}</lineAndColumnNumber>
+                <suggestedFix>user or username attribute with value "{data($connection/@user)}" should externalized</suggestedFix>
+            </ruleResult>
+        )
+    else if (
+        boolean($connection/@username) = true()
+        and
+        not(starts-with(data($connection/@username),'${') or starts-with(data($connection/@username),"#["))
+    )
+       then (
+            <ruleResult>
+                <lineAndColumnNumber>{data($connection/@*:codeReviewLocation)}</lineAndColumnNumber>
+                <suggestedFix>username attribute with value "{data($connection/@username)}" should be externalized</suggestedFix>
+            </ruleResult>
+       )
+    else ()
+          ]]></ruleLogic>
+  </rule>
+  <rule name="connectionPasswordConfiguration" severity="CRITICAL">
+    <ruleLogic><![CDATA[
+let $connectionPasswordConfiguration :=
+for $connection in $xmlFileContent//*[ends-with(local-name(), "-connection")] where boolean($connection/@password) = true()
+return
+    if( not (starts-with(data($connection/@password),'${') or starts-with(data($connection/@password),"#[") or starts-with(data($connection/@password),"p('") ) )
+        then (
+            <ruleResult>
+                <lineAndColumnNumber>{data($connection/@*:codeReviewLocation)}</lineAndColumnNumber>
+                <suggestedFix>user or username attribute with value "{data($connection/@password)}" should be encrypted and externalized into secured property file</suggestedFix>
+            </ruleResult>
+        )
+    else ()
+          ]]></ruleLogic>
+  </rule>
+  <rule name="requestConnectionIsTLSEnabled" severity="WARNING">
+    <ruleLogic><![CDATA[
+let $requestConnectionIsTLSEnabled :=
+for $connection in $xmlFileContent//*[ends-with(local-name(), "request-connection")]
+return
+    if(boolean($connection/@tlsContext) = false())
+        then (
+            <ruleResult>
+                <lineAndColumnNumber>{data($connection/@*:codeReviewLocation)}</lineAndColumnNumber>
+                <suggestedFix>request-connection "{data($connection/@host)}" should be TLS enabled</suggestedFix>
+            </ruleResult>
+        )
+    else()
+          ]]></ruleLogic>
+  </rule>
+  <rule name="tlsContextKeyPassword" severity="CRITICAL">
+    <ruleLogic><![CDATA[
+let $tlsContextKeyPassword :=
+for $contextKeyStore in $xmlFileContent//*[ends-with(local-name(), "context")]/*:key-store where boolean($contextKeyStore/@keyPassword) = true()
+return
+    if(not(starts-with($contextKeyStore/@keyPassword,'${') or starts-with($contextKeyStore/@keyPassword,'${')  ))
+        then (
+            <ruleResult>
+                <lineAndColumnNumber>{data($contextKeyStore/@*:codeReviewLocation)}</lineAndColumnNumber>
+                <suggestedFix>"{data($contextKeyStore/@keyPassword)}" should be externalized</suggestedFix>
+            </ruleResult>
+        )
+    else()
+          ]]></ruleLogic>
+  </rule>
+  <rule name="urlConfigExternalized" severity="CRITICAL">
+    <ruleLogic><![CDATA[
+let $urlConfigExternalized :=
+for $request in $xmlFileContent//*:request where boolean($request/@url) = true()
+return
+  if(not(starts-with(data($request/@url), '${')))
+             then (
+                 <ruleResult>
+                     <lineAndColumnNumber>{data($request/@*:codeReviewLocation)}</lineAndColumnNumber>
+                     <suggestedFix>url with value = "{data($request/@url)}" should be externalized into property file</suggestedFix>
+                 </ruleResult>
+             )
+     else ()
+          ]]></ruleLogic>
+  </rule>
+  <rule name="propFilesEnvironmentEnabled" severity="CRITICAL">
+    <ruleLogic><![CDATA[
+let $propFilesEnvironmentEnabled :=
+for $configProperties in $xmlFileContent//*:configuration-properties
+let $commonPropsConfig:= contains(lower-case(data($configProperties/@file)),"-common")
+return
+    if($fileName != 'global.xml')
+        then (
+            <ruleResult>
+                <lineAndColumnNumber>{data($configProperties/@*:codeReviewLocation)}</lineAndColumnNumber>
+                <suggestedFix>configuration-properties should be declared only in global.xml</suggestedFix>
+            </ruleResult>
+        )
+    else if(not(ends-with(data($configProperties/@file), '.yaml')))
+        then (
+            <ruleResult>
+                <lineAndColumnNumber>{data($configProperties/@*:codeReviewLocation)}</lineAndColumnNumber>
+                <suggestedFix>"{data($configProperties/@file)}" should be yaml based property files as per mule4 best practices</suggestedFix>
+            </ruleResult>
+        )
+    else if((not(contains(data($configProperties/@file), '${mule.env}')) = true()) and (data($commonPropsConfig) = false()))
+        then (
+            <ruleResult>
+                <lineAndColumnNumber>{data($configProperties/@*:codeReviewLocation)}</lineAndColumnNumber>
+                <suggestedFix>"{data($configProperties/@file)}" should contain "mule.env" environment property</suggestedFix>
+            </ruleResult>
+        )
+    else ()
+          ]]></ruleLogic>
+  </rule>
+  <rule name="securePropertiesConfigStandards" severity="CRITICAL">
+    <ruleLogic><![CDATA[
+let $securePropertiesConfigStandards :=
+for $securePropertiesNode in $xmlFileContent//*:config
+where $securePropertiesNode/name() eq 'secure-properties:config'
+return
+    if($fileName != 'global.xml')
+        then (
+            <ruleResult>
+                <lineAndColumnNumber>{data($securePropertiesNode/@*:codeReviewLocation)}</lineAndColumnNumber>
+                <suggestedFix>secure-properties-confog should be declared only in global.xml</suggestedFix>
+            </ruleResult>
+        )
+    else if(not(ends-with(data($securePropertiesNode/@file), '.yaml')))
+        then (
+            <ruleResult>
+                <lineAndColumnNumber>{data($securePropertiesNode/@*:codeReviewLocation)}</lineAndColumnNumber>
+                <suggestedFix>"{data($securePropertiesNode/@file)}" should be yaml based property files as per mule4 best practices</suggestedFix>
+            </ruleResult>
+        )
+    else if(not(contains(data($securePropertiesNode/@file), '${mule.env}')) = true())
+        then (
+            <ruleResult>
+                <lineAndColumnNumber>{data($securePropertiesNode/@*:codeReviewLocation)}</lineAndColumnNumber>
+                <suggestedFix>"{data($securePropertiesNode/@file)}" should contain "mule.env" environment property</suggestedFix>
+            </ruleResult>
+        )
+    else if( ( data($securePropertiesNode/@key) eq '${masterKey}') = false() )
+        then (
+            <ruleResult>
+                <lineAndColumnNumber>{data($securePropertiesNode/@*:codeReviewLocation)}</lineAndColumnNumber>
+                <suggestedFix>"{data($securePropertiesNode/@key/name())}" value should be defined as {data('${encryptionKey}')} or {data('${masterKey}')}</suggestedFix>
+            </ruleResult>
+        )
+    else ()
+          ]]></ruleLogic>
+  </rule>
+  <rule name="docNameAttributesForXmlNodes" severity="CRITICAL">
+    <ruleLogic><![CDATA[
+let $docNameAttributesForXmlNodes :=
+for $node in $xmlFileContent//node(),
+    $attrName in $node/@*:name
+    where $attrName != '' and $node/name() != 'sub-flow' and $node/name() != 'flow' and data($attrName) eq 'doc:name'
+let $docNameValue:= $node/@*:name
+let $nodeNameWithoutHyphensAndPrefix:= local:substringAfterLast(replace(local:getFileName($node/name()),'-',''),':')
+let $defaultDocNameTrimmed:= replace(normalize-space($docNameValue),' ','')
+let $flowReference:= 'Flow Reference'
+let $transformMessage:= 'Transform Message'
+return
+    if(lower-case(data($nodeNameWithoutHyphensAndPrefix)) eq lower-case($defaultDocNameTrimmed))
+      then (
+            <ruleResult>
+                <lineAndColumnNumber>{data($node/@*:codeReviewLocation)}</lineAndColumnNumber>
+                <suggestedFix>doc:name attribute of {$node/name()} should be properly described for better GUI visualization</suggestedFix>
+            </ruleResult>
+            )
+    else if(lower-case($flowReference) eq lower-case($docNameValue))
+      then (
+            <ruleResult>
+                <lineAndColumnNumber>{data($node/@*:codeReviewLocation)}</lineAndColumnNumber>
+                <suggestedFix>doc:name attribute of flow-ref should be properly described for better GUI visualization</suggestedFix>
+            </ruleResult>
+            )
+    else if(lower-case($transformMessage) eq lower-case($docNameValue))
+      then (
+            <ruleResult>
+                <lineAndColumnNumber>{data($node/@*:codeReviewLocation)}</lineAndColumnNumber>
+                <suggestedFix>doc:name attribute of ee:transform should be properly described for better GUI visualization</suggestedFix>
+            </ruleResult>
+            )
+    else()
+          ]]></ruleLogic>
+  </rule>
+  <rule name="recursiveFlowNames" severity="CRITICAL">
+    <ruleLogic><![CDATA[
+let $recursiveFlowNames :=
+for $flow in $xmlFileContent//*:flow,
+    $flowRef in $flow/*:flow-ref
+return
+    if(data($flowRef/@name) eq $flow/@name)
+           then (
+               <ruleResult>
+                   <lineAndColumnNumber>{data($flowRef/@*:codeReviewLocation)}</lineAndColumnNumber>
+                   <suggestedFix>flow-ref with attribute name = "{data($flowRef/@name)}" is recursive, which is not a best practice</suggestedFix>
+               </ruleResult>
+           )
+    else ()
+          ]]></ruleLogic>
+  </rule>
+  <rule name="recursiveSubFlowNames" severity="CRITICAL">
+    <ruleLogic><![CDATA[
+let $recursiveSubFlowNames :=
+for $sub-flow in $xmlFileContent//*:sub-flow,
+    $flowRef in $sub-flow/*:flow-ref
+return
+    if(data($flowRef/@name) eq $sub-flow/@name)
+                then (
+                    <ruleResult>
+                        <lineAndColumnNumber>{data($flowRef/@*:codeReviewLocation)}</lineAndColumnNumber>
+                        <suggestedFix>flow-ref with attribute name = "{data($flowRef/@name)}" is recursive, which is not a best practice</suggestedFix>
+                    </ruleResult>
+                )
+    else ()
+          ]]></ruleLogic>
+  </rule>
+  <rule name="connectorConfigurations" severity="CRITICAL">
+    <ruleLogic><![CDATA[
+let $connectorConfigurations:=
+for $configNode in $xmlFileContent//*:config
+where data($configNode/name()) != 'apikit:config' and
+      data($configNode/name()) != 'spring:config' and
+      data($configNode/name()) != 'secure-properties:config'
+return
+    if($fileName != 'global.xml')
+        then (
+            <ruleResult>
+                <lineAndColumnNumber>{data($configNode/@*:codeReviewLocation)}</lineAndColumnNumber>
+                <suggestedFix>{data($configNode/node-name())} should be declared only in global.xml</suggestedFix>
+            </ruleResult>
+        )
+    else if(boolean($configNode//*:reconnection) = false())
+        then (
+            <ruleResult>
+                <lineAndColumnNumber>{data($configNode/@*:codeReviewLocation)}</lineAndColumnNumber>
+                <suggestedFix>reconnection-strategy for {data($configNode/name())} should be defined</suggestedFix>
+            </ruleResult>
+        )
+    else ()
+          ]]></ruleLogic>
+  </rule>
+  <rule name="loggingWholePayloadOrMuleMessageObject" severity="CRITICAL">
+    <ruleLogic><![CDATA[
+let $loggingWholePayloadOrMuleMessageObject:=
+for $loggerNode in $xmlFileContent//*:logger
+return
+    if(data($loggerNode/@*:message) eq '#[message]')
+        then (
+              <ruleResult>
+                  <lineAndColumnNumber>{data($loggerNode/@*:codeReviewLocation)}</lineAndColumnNumber>
+                  <suggestedFix>logger with message='{data($loggerNode/@*:message)}' is not allowed</suggestedFix>
+              </ruleResult>
+              )
+     else if(data($loggerNode/@*:message) eq '#[payload]')
+        then (
+              <ruleResult>
+                  <lineAndColumnNumber>{data($loggerNode/@*:codeReviewLocation)}</lineAndColumnNumber>
+                  <suggestedFix>logger with message='{data($loggerNode/@*:message)}' is not allowed</suggestedFix>
+              </ruleResult>
+              )
+     else()
+          ]]></ruleLogic>
+  </rule>
+  <rule name="noGlobalPropertiesInNonGlobalFiles" severity="CRITICAL">
+    <ruleLogic><![CDATA[
+let $noGlobalPropertiesInNonGlobalFiles:=
+for $node in $xmlFileContent//*:mule/node()
+    where $node/name() != ''
+return
+    if(data($node/name() != "flow" and $node/name() != "sub-flow" and $fileName != 'global.xml'))
+       then (
+             <ruleResult>
+                 <lineAndColumnNumber>{data($node/@*:codeReviewLocation)}</lineAndColumnNumber>
+                 <suggestedFix>'{data($node/name())}' should be defined in global.xml only</suggestedFix>
+             </ruleResult>
+             )
+    else(
+        )
+          ]]></ruleLogic>
+  </rule>
+</XQueryRules>
